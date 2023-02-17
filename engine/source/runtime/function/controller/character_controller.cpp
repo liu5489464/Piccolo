@@ -76,17 +76,61 @@ namespace Pilot
 
         hits.clear();
 
+        float maxStepSize = 0.5f;
+
         // side pass
-        //if (physics_scene->sweep(
-        //    m_rigidbody_shape,
-        //    /**** [0] ****/,
-        //    /**** [1] ****/,
-        //    /**** [2] ****/,
-        //    hits))
-        //{
-        //    final_position += /**** [3] ****/;
-        //}
-        //else
+        if (physics_scene->sweep(
+            m_rigidbody_shape,
+            world_transform.getMatrix(),
+            horizontal_direction,
+            horizontal_displacement.length(),
+            hits))
+        {
+            float move_distance = Math::max(hits[0].hit_distance - 0.001f, 0.0f);
+            float total_distance = move_distance;
+            final_position += move_distance * horizontal_direction;
+            
+            Vector3 horizontal_displacement2 = horizontal_displacement - move_distance * horizontal_direction;
+            //能够登上台阶
+            if (hits[0].hit_position.z - final_position.z < maxStepSize)
+            {
+                std::vector<PhysicsHitInfo> hits2;
+                if (physics_scene->raycast(  
+                    final_position + 0.01f, 
+                    horizontal_displacement2,
+                    horizontal_displacement2.length(), 
+                    hits2))
+                {
+                    float move_distance2 = Math::max(hits2[0].hit_distance - 0.01f, 0.0f);
+                    total_distance += move_distance2;
+                    horizontal_displacement2 = move_distance2 * horizontal_direction;
+                }
+                if (horizontal_displacement2.length() > 0.01f)
+                {
+                    final_position += (hits[0].hit_position.z - final_position.z) * Vector3::UNIT_Z +
+                                      horizontal_displacement2;
+                }
+            }
+
+            //沿着墙移动
+            Vector3 dir = Vector3::UNIT_Z.crossProduct(hits[0].hit_normal);
+            dir         = horizontal_direction.dotProduct(dir) > 0 ? dir : -dir;
+            float distance = Math::max(horizontal_displacement.length() - total_distance - 0.001f, 0.0f);
+            if (distance > 0.001f)
+            {
+                std::vector<PhysicsHitInfo> hits3;
+                Transform world_transform3 = Transform(final_position, Quaternion::IDENTITY, Vector3::UNIT_SCALE);
+                if (physics_scene->sweep(m_rigidbody_shape, world_transform3.getMatrix(), dir, distance, hits3))
+                {
+                    final_position += (hits3[0].hit_distance - 0.001f) * dir;
+                }
+                else
+                {
+                    final_position += distance * dir;
+                }
+            }
+        }
+        else
         {
             final_position += horizontal_displacement;
         }
